@@ -1,0 +1,4 @@
+[root]
+name = "cargo-demangle"
+version = "0.1.0"
+
