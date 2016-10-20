@@ -3,10 +3,10 @@ name = "rustfilt"
 description = "Demangle Rust symbol names"
 homepage = "https://github.com/luser/rustfilt"
 repository = "https://github.com/luser/rustfilt"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Ted Mielczarek <ted@mielczarek.org>"]
 license = "Apache-2.0"
 
 [dependencies]
-rustc-demangle = "0.1.0"
+rustc-demangle = "0.1.2"
 
