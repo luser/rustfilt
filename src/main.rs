@@ -12,35 +12,207 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#[macro_use]
+extern crate clap;
+#[macro_use]
+extern crate lazy_static;
+extern crate regex;
 extern crate rustc_demangle;
 
 use rustc_demangle::demangle;
+use regex::{Regex, Captures};
 
-use std::env;
-use std::io::{
-    self,
-    BufRead,
-    Write,
-};
+use std::borrow::Cow;
+use std::fmt::{Write as FmtWrite};
+use std::fs::File;
+use std::io::{self, BufRead, BufReader, BufWriter, Write, stdin, stdout, stderr};
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
+use std::process::exit;
 
-fn try_demangle<O : Write>(mut out: &mut O, maybe_symbol: Result<String, ()>) {
-    if let Ok(symbol) = maybe_symbol {
-        write!(out, "{}\n", demangle(&symbol)).unwrap();
+mod tests;
+
+lazy_static! {
+    // NOTE: Use [[:alnum::]] instead of \w to only match ASCII word characters, not unicode
+    static ref MANGLED_NAME_PATTERN: Regex = Regex::new(r"_ZN[\$\._[:alnum:]]*").unwrap();
+}
+
+#[inline] // Except for the nested functions (which don't count), this is a very small function
+pub fn demangle_line(line: &str, include_hash: bool) -> Cow<str> {
+    fn demangle_nohash(captures: &Captures) -> String {
+        let original = &captures[0];
+        // Allocate the buffer based on the assumption the output won't be longer than the input
+        let mut buf = String::with_capacity(original.len());
+        let demangled = demangle(original);
+         // Use alternate formatting to exclude the hash from the result
+        write!(buf, "{:#}", demangled).unwrap();
+        debug_assert!(buf.len() <= original.len(), "Output '{}' was longer than input '{}'", buf, original);
+        buf
+    }
+    fn demangle_with_hash(captures: &Captures) -> String {
+        let original = &captures[0];
+        // Allocate the buffer based on the assumption the output won't be longer than the input
+        let mut buf = String::with_capacity(original.len());
+        let demangled = demangle(original);
+        write!(buf, "{}", demangled).unwrap();
+        debug_assert!(buf.len() <= original.len(), "Output '{}' was longer than input '{}'", buf, original);
+        buf
+    }
+    MANGLED_NAME_PATTERN.replace_all(line, if include_hash { demangle_with_hash } else { demangle_nohash })
+}
+
+fn demangle_stream<R: BufRead, W: Write>(input: &mut R, output: &mut W, include_hash: bool) -> io::Result<()> {
+    let mut buf = String::new();
+    loop {
+        // NOTE: this is actually more efficient than lines(), since it re-uses the buffer
+        let num_bytes = input.read_line(&mut buf)?;
+        if num_bytes > 0 {
+            // NOTE: This includes the line-ending, and leaves it untouched
+            let demangled_line = demangle_line(&buf, include_hash).into_owned();
+            if cfg!(debug_assertions) {
+                debug_assert!(buf.ends_with('\n'), "No line ending in input!");
+                let line_ending = if buf.ends_with("\r\n") { "\r\n" } else { "\n" };
+                debug_assert!(demangled_line.ends_with(line_ending), "Demangled line has incorrect line ending");
+            }
+            output.write_all(&demangled_line.into_bytes())?;
+
+        } else {
+            return Ok(()); // Successfully hit EOF
+        }
+        buf.clear(); // Reset the buffer's position, without freeing it's underlying memory
+    }
+}
+
+enum InputType {
+    Stdin,
+    File(PathBuf)
+}
+
+impl InputType {
+    fn demangle(&self, output: OutputType, include_hash: bool) -> io::Result<()> {
+        // NOTE: This has to be seperated into two functions for generics
+        match *self {
+            InputType::Stdin => {
+                let stdin = stdin();
+                let mut lock = stdin.lock();
+                output.demangle_from(&mut lock, include_hash)
+            },
+            InputType::File(ref path) => output.demangle_from(&mut BufReader::new(File::open(path)?), include_hash)
+        }
+    }
+    fn validate(file: String) -> Result<(), String> {
+        file.parse::<InputType>().map(|_| ())
+    }
+}
+impl FromStr for InputType {
+    type Err = String;
+    fn from_str(file: &str) -> Result<InputType, String> {
+        if file == "-" {
+            Ok(InputType::Stdin)
+        } else {
+            let path = Path::new(&file);
+            if !path.is_file() {
+                if !path.exists() {
+                    Err(format!("{} doesn't exist", file))
+                } else {
+                    Err(format!("{} isn't a file", file))
+                }
+            } else {
+                Ok(InputType::File(PathBuf::from(path)))
+            }
+        }
+    }
+}
+
+enum OutputType {
+    Stdout,
+    File(PathBuf)
+}
+
+impl OutputType {
+    #[inline] // It's only used twice
+    fn demangle_from<I: io::BufRead>(&self, input: &mut I, include_hash: bool) -> io::Result<()> {
+        match *self {
+            OutputType::Stdout => {
+                let stdout = stdout();
+                let mut lock = stdout.lock();
+                demangle_stream(input, &mut lock, include_hash)
+            },
+            OutputType::File(ref path) => {
+                let file = File::create(path)?;
+                let mut buf = BufWriter::new(&file);
+                demangle_stream(input, &mut buf, include_hash)
+            }
+        }
+    }
+    fn demangle_names<S: AsRef<str>>(&self, names: &[S], include_hash: bool) -> io::Result<()> {
+        #[inline] // It's only used once ;)
+        fn demangle_names_to<S: AsRef<str>, O: io::Write>(names: &[S], output: &mut O, include_hash: bool) -> io::Result<()> {
+            for name in names {
+                let demangled = demangle(name.as_ref());
+                if include_hash {
+                    writeln!(output, "{}", demangled)?
+                } else {
+                    writeln!(output, "{:#}", demangled)?
+                };
+            }
+            Ok(())
+        }
+        match *self {
+            OutputType::Stdout => {
+                let stdout = stdout();
+                let mut lock = stdout.lock();
+                demangle_names_to(names, &mut lock, include_hash)
+            },
+            OutputType::File(ref path) => {
+                let file = File::create(path)?;
+                let mut buf = BufWriter::new(&file);
+                demangle_names_to(names, &mut buf, include_hash)
+            }
+        }
+    }
+    fn validate(file: String) -> Result<(), String> {
+        file.parse::<OutputType>().map(|_| ())
+    }
+}
+impl FromStr for OutputType {
+    type Err = String;
+    fn from_str(file: &str) -> Result<OutputType, String> {
+        if file == "-" {
+            Ok(OutputType::Stdout)
+        } else {
+            let path = Path::new(&file);
+            if path.exists() {
+                Err(format!("{} already exists", file))
+            } else {
+                Ok(OutputType::File(PathBuf::from(path)))
+            }
+        }
     }
 }
 
 fn main() {
-    let so = io::stdout();
-    let mut stdout = so.lock();
-    let mut printed = false;
-    for argument in env::args_os().skip(1) {
-        printed = true;
-        try_demangle(&mut stdout, argument.into_string().or(Err(())));
-    }
-    if !printed {
-        let si = io::stdin();
-        for line in si.lock().lines() {
-            try_demangle(&mut stdout, line.or(Err(())));
-        }
+    let args: clap::ArgMatches = clap_app!(rust_demangle =>
+        (version: crate_version!())
+        (author: crate_authors!())
+        (about: "Demangles names generated by the rust compiler")
+        (@arg INCLUDE_HASH: --include-hash --hash "Include the hashes in the demangled names")
+        (@arg INPUT: --input -i [FILE] default_value("-") {InputType::validate} "The input file to replace the mangled names in, or '-' for stdin")
+        (@arg OUTPUT: --output -o [FILE] default_value("-") {OutputType::validate} "The output file to emit the demangled names to, or '-' for stdout")
+        (@arg NAMES: ... [NAME] conflicts_with[INPUT] "The list of names to demangle")
+    ).get_matches();
+    let include_hash = args.is_present("INCLUDE_HASH");
+    let output = value_t!(args, "OUTPUT", OutputType).unwrap();
+    if let Some(names) = args.values_of("NAMES") {
+        output.demangle_names(&names.collect::<Vec<_>>(), include_hash).unwrap_or_else(|e| {
+            writeln!(stderr(), "Unable to demangle names: {}", e).unwrap();
+            exit(1);
+        })
+    } else {
+        let input = value_t!(args, "INPUT", InputType).unwrap();
+        input.demangle(output, include_hash).unwrap_or_else(|e| {
+            writeln!(stderr(), "Unable to demangle input: {}", e).unwrap();
+            exit(1);
+        })
     }
 }
