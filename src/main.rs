@@ -95,9 +95,9 @@ impl InputType {
             InputType::Stdin => {
                 let stdin = stdin();
                 let mut lock = stdin.lock();
-                output.demangle_from(&mut lock, include_hash)
+                output.write_demangled(&mut lock, include_hash)
             },
-            InputType::File(ref path) => output.demangle_from(&mut BufReader::new(File::open(path)?), include_hash)
+            InputType::File(ref path) => output.write_demangled(&mut BufReader::new(File::open(path)?), include_hash)
         }
     }
     fn validate(file: String) -> Result<(), String> {
@@ -131,7 +131,7 @@ enum OutputType {
 
 impl OutputType {
     #[inline] // It's only used twice
-    fn demangle_from<I: io::BufRead>(&self, input: &mut I, include_hash: bool) -> io::Result<()> {
+    fn write_demangled<I: io::BufRead>(&self, input: &mut I, include_hash: bool) -> io::Result<()> {
         match *self {
             OutputType::Stdout => {
                 let stdout = stdout();
@@ -145,8 +145,8 @@ impl OutputType {
             }
         }
     }
-    fn demangle_names<S: AsRef<str>>(&self, names: &[S], include_hash: bool) -> io::Result<()> {
-        #[inline] // It's only used once ;)
+    fn write_demangled_names<S: AsRef<str>>(&self, names: &[S], include_hash: bool) -> io::Result<()> {
+        #[inline] // It's only used twice ;)
         fn demangle_names_to<S: AsRef<str>, O: io::Write>(names: &[S], output: &mut O, include_hash: bool) -> io::Result<()> {
             for name in names {
                 let demangled = demangle(name.as_ref());
@@ -204,7 +204,7 @@ fn main() {
     let include_hash = args.is_present("INCLUDE_HASH");
     let output = value_t!(args, "OUTPUT", OutputType).unwrap();
     if let Some(names) = args.values_of("NAMES") {
-        output.demangle_names(&names.collect::<Vec<_>>(), include_hash).unwrap_or_else(|e| {
+        output.write_demangled_names(&names.collect::<Vec<_>>(), include_hash).unwrap_or_else(|e| {
             writeln!(stderr(), "Unable to demangle names: {}", e).unwrap();
             exit(1);
         })
