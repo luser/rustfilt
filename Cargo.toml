@@ -3,10 +3,22 @@ name = "rustfilt"
 description = "Demangle Rust symbol names"
 homepage = "https://github.com/luser/rustfilt"
 repository = "https://github.com/luser/rustfilt"
-version = "0.1.2-pre"
-authors = ["Ted Mielczarek <ted@mielczarek.org>"]
+version = "0.2.0"
+authors = ["Ted Mielczarek <ted@mielczarek.org>", "Nicholas Schlabach <Techcable@techcable.ent>"]
+readme = "README.md"
 license = "Apache-2.0"
 
 [dependencies]
-rustc-demangle = "0.1.2"
+rustc-demangle = "^0.1.4"
+lazy_static = "^0.2.4"
+regex = "^0.2.1"
 
+[dependencies.clap]
+version = "^2.21.1"
+# Exclude all optional features except wrap_help
+default-features = false
+features = ["wrap_help"]
+
+[profile.release]
+# Reduces binary size by 21%
+lto = true
