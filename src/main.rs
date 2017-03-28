@@ -23,7 +23,6 @@ use rustc_demangle::demangle;
 use regex::{Regex, Captures};
 
 use std::borrow::Cow;
-use std::fmt::{Write as FmtWrite};
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, BufWriter, Write, stdin, stdout, stderr};
 use std::path::{Path, PathBuf};
@@ -39,48 +38,34 @@ lazy_static! {
 
 #[inline] // Except for the nested functions (which don't count), this is a very small function
 pub fn demangle_line(line: &str, include_hash: bool) -> Cow<str> {
-    fn demangle_nohash(captures: &Captures) -> String {
-        let original = &captures[0];
-        // Allocate the buffer based on the assumption the output won't be longer than the input
-        let mut buf = String::with_capacity(original.len());
-        let demangled = demangle(original);
-         // Use alternate formatting to exclude the hash from the result
-        write!(buf, "{:#}", demangled).unwrap();
-        debug_assert!(buf.len() <= original.len(), "Output '{}' was longer than input '{}'", buf, original);
-        buf
-    }
-    fn demangle_with_hash(captures: &Captures) -> String {
-        let original = &captures[0];
-        // Allocate the buffer based on the assumption the output won't be longer than the input
-        let mut buf = String::with_capacity(original.len());
-        let demangled = demangle(original);
-        write!(buf, "{}", demangled).unwrap();
-        debug_assert!(buf.len() <= original.len(), "Output '{}' was longer than input '{}'", buf, original);
-        buf
-    }
-    MANGLED_NAME_PATTERN.replace_all(line, if include_hash { demangle_with_hash } else { demangle_nohash })
+    MANGLED_NAME_PATTERN.replace_all(line, |captures: &Captures| {
+        let demangled = demangle(&captures[0]);
+        if include_hash {
+            demangled.to_string()
+        } else {
+            // Use alternate formatting to exclude the hash from the result
+            format!("{:#}", demangled)
+        }
+    })
 }
 
 fn demangle_stream<R: BufRead, W: Write>(input: &mut R, output: &mut W, include_hash: bool) -> io::Result<()> {
+    // NOTE: this is actually more efficient than lines(), since it re-uses the buffer
     let mut buf = String::new();
-    loop {
-        // NOTE: this is actually more efficient than lines(), since it re-uses the buffer
-        let num_bytes = input.read_line(&mut buf)?;
-        if num_bytes > 0 {
+    while input.read_line(&mut buf)? > 0 {
+        {
             // NOTE: This includes the line-ending, and leaves it untouched
-            let demangled_line = demangle_line(&buf, include_hash).into_owned();
+            let demangled_line = demangle_line(&buf, include_hash);
             if cfg!(debug_assertions) {
                 debug_assert!(buf.ends_with('\n'), "No line ending in input!");
                 let line_ending = if buf.ends_with("\r\n") { "\r\n" } else { "\n" };
                 debug_assert!(demangled_line.ends_with(line_ending), "Demangled line has incorrect line ending");
             }
-            output.write_all(&demangled_line.into_bytes())?;
-
-        } else {
-            return Ok(()); // Successfully hit EOF
+            output.write_all(demangled_line.as_bytes())?;
         }
         buf.clear(); // Reset the buffer's position, without freeing it's underlying memory
     }
+    Ok(()) // Successfully hit EOF
 }
 
 enum InputType {
