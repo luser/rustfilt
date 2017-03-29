@@ -56,8 +56,7 @@ fn demangle_stream<R: BufRead, W: Write>(input: &mut R, output: &mut W, include_
         {
             // NOTE: This includes the line-ending, and leaves it untouched
             let demangled_line = demangle_line(&buf, include_hash);
-            if cfg!(debug_assertions) {
-                debug_assert!(buf.ends_with('\n'), "No line ending in input!");
+            if cfg!(debug_assertions) && buf.ends_with('\n') {
                 let line_ending = if buf.ends_with("\r\n") { "\r\n" } else { "\n" };
                 debug_assert!(demangled_line.ends_with(line_ending), "Demangled line has incorrect line ending");
             }

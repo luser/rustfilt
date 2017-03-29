@@ -3,6 +3,7 @@
 
 use rustc_demangle::demangle;
 use super::demangle_line;
+use super::demangle_stream;
 
 static MANGLED_NAMES: &'static [&'static str] = &[
     "_ZN55_$LT$$RF$$u27$a$u20$T$u20$as$u20$core..fmt..Display$GT$3fmt17h510ed05e72307174E",
@@ -66,4 +67,19 @@ fn embedded_demangle() {
 #[test]
 fn embedded_demangle_nohash() {
     test_embedded_line_demangle(|line| demangle_line(line, true).into_owned(), |name| demangle(name).to_string());
+}
+
+#[test]
+fn stream_without_newlines() {
+    let tab_mangled = MANGLED_NAMES.join("\t");
+
+    let mut stream_demangled: Vec<u8> = vec![];
+    demangle_stream(&mut tab_mangled.as_bytes(), &mut stream_demangled, true).unwrap();
+
+    let split_demangled: Vec<_> = stream_demangled.split(|&b| b == b'\t').collect();
+    assert_eq!(MANGLED_NAMES.len(), split_demangled.len());
+
+    for (mangled, demangled) in MANGLED_NAMES.iter().zip(split_demangled) {
+        assert_eq!(demangled, demangle(mangled).to_string().as_bytes());
+    }
 }
