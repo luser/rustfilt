@@ -1,6 +1,6 @@
 [root]
 name = "rustfilt"
-version = "0.2.0"
+version = "0.2.1-pre"
 dependencies = [
  "clap 2.21.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
