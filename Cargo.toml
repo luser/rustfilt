@@ -11,7 +11,7 @@ license = "Apache-2.0"
 [dependencies]
 rustc-demangle = "^0.1.4"
 lazy_static = "^1"
-regex = "^0.2.1"
+regex = "^1"
 
 [dependencies.clap]
 version = "^2.21.1"
