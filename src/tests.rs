@@ -15,7 +15,8 @@ static MANGLED_NAMES: &'static [&'static str] = &[
     "_ZN109_$LT$core..str..pattern..CharSearcher$LT$$u27$a$GT$$u20$as$u20$core..str..pattern..Searcher$LT$$u27$a$GT$$GT$10next_match17h9c8d80a58da7cd74E",
     "_ZN84_$LT$core..iter..Map$LT$I$C$$u20$F$GT$$u20$as$u20$core..iter..iterator..Iterator$GT$4next17h98ea4751a6975428E",
     "_ZN51_$LT$serde_json..read..IteratorRead$LT$Iter$GT$$GT$15parse_str_bytes17h8199b7867f1a334fE",
-    "_ZN3std11collections4hash3map11RandomState3new4KEYS7__getit5__KEY17h1bc0dbd302b9f01bE"
+    "_ZN3std11collections4hash3map11RandomState3new4KEYS7__getit5__KEY17h1bc0dbd302b9f01bE",
+    "_RNvMs1_Cs7MHmHeq2pj7_11num_complexINtB5_7ComplexdE4sqrtB5_",
 ];
 #[test]
 fn ignores_text() {

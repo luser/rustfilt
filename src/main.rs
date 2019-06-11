@@ -33,7 +33,7 @@ mod tests;
 
 lazy_static! {
     // NOTE: Use [[:alnum::]] instead of \w to only match ASCII word characters, not unicode
-    static ref MANGLED_NAME_PATTERN: Regex = Regex::new(r"_ZN[\$\._[:alnum:]]*").unwrap();
+    static ref MANGLED_NAME_PATTERN: Regex = Regex::new(r"_[RZ]N[\$\._[:alnum:]]*").unwrap();
 }
 
 #[inline] // Except for the nested functions (which don't count), this is a very small function
