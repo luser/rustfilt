@@ -15,8 +15,15 @@ static MANGLED_NAMES: &'static [&'static str] = &[
     "_ZN109_$LT$core..str..pattern..CharSearcher$LT$$u27$a$GT$$u20$as$u20$core..str..pattern..Searcher$LT$$u27$a$GT$$GT$10next_match17h9c8d80a58da7cd74E",
     "_ZN84_$LT$core..iter..Map$LT$I$C$$u20$F$GT$$u20$as$u20$core..iter..iterator..Iterator$GT$4next17h98ea4751a6975428E",
     "_ZN51_$LT$serde_json..read..IteratorRead$LT$Iter$GT$$GT$15parse_str_bytes17h8199b7867f1a334fE",
-    "_ZN3std11collections4hash3map11RandomState3new4KEYS7__getit5__KEY17h1bc0dbd302b9f01bE"
+    "_ZN3std11collections4hash3map11RandomState3new4KEYS7__getit5__KEY17h1bc0dbd302b9f01bE",
+
+    // RFC2603 v0 mangled names
+    "_RNvNtNtCs1234_7mycrate3foo3bar3baz",
+    "_RNvNvMCs1234_7mycrateINtCs1234_7mycrate3FoopE3bar4QUUX",
+    "_RNvNvXCs1234_7mycrateINtCs1234_7mycrate3FoopENtNtC3std5clone5Clone5clone4QUUX",
+    "_RNvNvCs1234_7mycrate4QUUX3FOO",
 ];
+
 #[test]
 fn ignores_text() {
     for text in &["boom de yada\tboom de yada\n", "bananas are fun for everyone"] {
@@ -29,6 +36,13 @@ fn ignores_text() {
 fn standalone_demangles() {
     for name in MANGLED_NAMES {
         assert_eq!(demangle_line(name, true).as_ref(), &demangle(name).to_string());
+    }
+}
+
+#[test]
+fn not_noop_demangles() {
+    for name in MANGLED_NAMES {
+        assert_ne!(demangle_line(name, false).as_ref(), *name);
     }
 }
 
