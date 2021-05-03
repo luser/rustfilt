@@ -97,3 +97,8 @@ fn stream_without_newlines() {
         assert_eq!(demangled, demangle(mangled).to_string().as_bytes());
     }
 }
+
+#[test]
+fn demangling_error() {
+    assert_eq!(demangle_line("_RNvB_1a", false), "_RNvB_1a");
+}

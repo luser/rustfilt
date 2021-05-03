@@ -19,7 +19,6 @@ extern crate lazy_static;
 extern crate regex;
 extern crate rustc_demangle;
 
-use rustc_demangle::demangle;
 use regex::{Regex, Captures};
 
 use std::borrow::Cow;
@@ -36,16 +35,31 @@ lazy_static! {
     static ref MANGLED_NAME_PATTERN: Regex = Regex::new(r"_(ZN|R)[\$\._[:alnum:]]*").unwrap();
 }
 
+fn demangle(symbol: &str, include_hash: bool) -> String {
+    use std::fmt::Write;
+
+    let mut out = String::new();
+    let demangled = rustc_demangle::demangle(symbol);
+
+    let result = if include_hash {
+        write!(out, "{}", demangled)
+    } else {
+        // Use alternate formatting to exclude the hash from the result
+        write!(out, "{:#}", demangled)
+    };
+
+    if result.is_err() {
+        out.clear();
+        out.push_str(symbol);
+    }
+
+    out
+}
+
 #[inline] // Except for the nested functions (which don't count), this is a very small function
 pub fn demangle_line(line: &str, include_hash: bool) -> Cow<str> {
     MANGLED_NAME_PATTERN.replace_all(line, |captures: &Captures| {
-        let demangled = demangle(&captures[0]);
-        if include_hash {
-            demangled.to_string()
-        } else {
-            // Use alternate formatting to exclude the hash from the result
-            format!("{:#}", demangled)
-        }
+        demangle(&captures[0], include_hash)
     })
 }
 
@@ -133,12 +147,7 @@ impl OutputType {
         #[inline] // It's only used twice ;)
         fn demangle_names_to<S: AsRef<str>, O: io::Write>(names: &[S], output: &mut O, include_hash: bool) -> io::Result<()> {
             for name in names {
-                let demangled = demangle(name.as_ref());
-                if include_hash {
-                    writeln!(output, "{}", demangled)?
-                } else {
-                    writeln!(output, "{:#}", demangled)?
-                };
+                writeln!(output, "{}", demangle(name.as_ref(), include_hash))?;
             }
             Ok(())
         }
