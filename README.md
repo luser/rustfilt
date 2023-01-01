@@ -1,4 +1,5 @@
-[![Build Status](https://travis-ci.org/luser/rustfilt.svg?branch=master)](https://travis-ci.org/luser/rustfilt) [![Crates.io](https://img.shields.io/crates/v/rustfilt.svg)](https://crates.io/crates/rustfilt)
+[![main](https://github.com/luser/rustfilt/actions/workflows/main.yml/badge.svg)](https://github.com/luser/rustfilt/actions/workflows/main.yml)
+[![Crates.io](https://img.shields.io/crates/v/rustfilt.svg)](https://crates.io/crates/rustfilt)
 
 Demangle Rust symbol names using [rustc-demangle](https://github.com/alexcrichton/rustc-demangle). `rustfilt` works similarly to `c++filt`, in that it accepts mangled symbol names as command line arguments, and if none are provided it accepts mangled symbols from stdin. Demangled symbols are written to stdout.
 
