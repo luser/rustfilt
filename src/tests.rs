@@ -1,8 +1,7 @@
 #![cfg(test)]
-///! Tests demangle_line, based upon the assumption rustc_demangle works properly
+///! Tests demangle_stream, based upon the assumption rustc_demangle works properly
 
 use rustc_demangle::demangle;
-use super::demangle_line;
 use super::demangle_stream;
 
 static MANGLED_NAMES: &'static [&'static str] = &[
@@ -23,6 +22,12 @@ static MANGLED_NAMES: &'static [&'static str] = &[
     "_RNvNvXCs1234_7mycrateINtCs1234_7mycrate3FoopENtNtC3std5clone5Clone5clone4QUUX",
     "_RNvNvCs1234_7mycrate4QUUX3FOO",
 ];
+
+fn demangle_line(s: &str, include_hash: bool) -> std::borrow::Cow<str> {
+    let mut out = Vec::new();
+    demangle_stream(&mut s.as_bytes(), &mut out, include_hash).unwrap();
+    std::borrow::Cow::Owned(String::from_utf8(out).unwrap())
+}
 
 #[test]
 fn ignores_text() {

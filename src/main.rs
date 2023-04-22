@@ -14,58 +14,17 @@
 
 #[macro_use]
 extern crate clap;
-#[macro_use]
-extern crate lazy_static;
-extern crate regex;
 extern crate rustc_demangle;
 
-use rustc_demangle::demangle;
-use regex::{Regex, Captures};
+use rustc_demangle::demangle_stream;
 
-use std::borrow::Cow;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, BufWriter, Write, stdin, stdout, stderr};
+use std::io::{self, BufReader, BufWriter, Write, stdin, stdout, stderr};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::process::exit;
 
 mod tests;
-
-lazy_static! {
-    // NOTE: Use [[:alnum::]] instead of \w to only match ASCII word characters, not unicode
-    static ref MANGLED_NAME_PATTERN: Regex = Regex::new(r"_(ZN|R)[\$\._[:alnum:]]*").unwrap();
-}
-
-#[inline] // Except for the nested functions (which don't count), this is a very small function
-pub fn demangle_line(line: &str, include_hash: bool) -> Cow<str> {
-    MANGLED_NAME_PATTERN.replace_all(line, |captures: &Captures| {
-        let demangled = demangle(&captures[0]);
-        if include_hash {
-            demangled.to_string()
-        } else {
-            // Use alternate formatting to exclude the hash from the result
-            format!("{:#}", demangled)
-        }
-    })
-}
-
-fn demangle_stream<R: BufRead, W: Write>(input: &mut R, output: &mut W, include_hash: bool) -> io::Result<()> {
-    // NOTE: this is actually more efficient than lines(), since it re-uses the buffer
-    let mut buf = String::new();
-    while input.read_line(&mut buf)? > 0 {
-        {
-            // NOTE: This includes the line-ending, and leaves it untouched
-            let demangled_line = demangle_line(&buf, include_hash);
-            if cfg!(debug_assertions) && buf.ends_with('\n') {
-                let line_ending = if buf.ends_with("\r\n") { "\r\n" } else { "\n" };
-                debug_assert!(demangled_line.ends_with(line_ending), "Demangled line has incorrect line ending");
-            }
-            output.write_all(demangled_line.as_bytes())?;
-        }
-        buf.clear(); // Reset the buffer's position, without freeing it's underlying memory
-    }
-    Ok(()) // Successfully hit EOF
-}
 
 enum InputType {
     Stdin,
@@ -133,7 +92,7 @@ impl OutputType {
         #[inline] // It's only used twice ;)
         fn demangle_names_to<S: AsRef<str>, O: io::Write>(names: &[S], output: &mut O, include_hash: bool) -> io::Result<()> {
             for name in names {
-                let demangled = demangle(name.as_ref());
+                let demangled = rustc_demangle::demangle(name.as_ref());
                 if include_hash {
                     writeln!(output, "{}", demangled)?
                 } else {

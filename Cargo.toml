@@ -9,9 +9,7 @@ readme = "README.md"
 license = "Apache-2.0"
 
 [dependencies]
-rustc-demangle = "^0.1.4"
-lazy_static = "^1"
-regex = "^1"
+rustc-demangle = { version = "0.1.23", features = ["std"] }
 
 [dependencies.clap]
 version = "^2.21.1"
