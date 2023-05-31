@@ -1,8 +1,7 @@
 #![cfg(test)]
-///! Tests demangle_stream, based upon the assumption rustc_demangle works properly
-
-use rustc_demangle::demangle;
 use super::demangle_stream;
+///! Tests demangle_stream, based upon the assumption rustc_demangle works properly
+use rustc_demangle::demangle;
 
 static MANGLED_NAMES: &'static [&'static str] = &[
     "_ZN55_$LT$$RF$$u27$a$u20$T$u20$as$u20$core..fmt..Display$GT$3fmt17h510ed05e72307174E",
@@ -31,7 +30,10 @@ fn demangle_line(s: &str, include_hash: bool) -> std::borrow::Cow<str> {
 
 #[test]
 fn ignores_text() {
-    for text in &["boom de yada\tboom de yada\n", "bananas are fun for everyone"] {
+    for text in &[
+        "boom de yada\tboom de yada\n",
+        "bananas are fun for everyone",
+    ] {
         assert_eq!(demangle_line(text, false), *text);
         assert_eq!(demangle_line(text, true), *text);
     }
@@ -40,7 +42,10 @@ fn ignores_text() {
 #[test]
 fn standalone_demangles() {
     for name in MANGLED_NAMES {
-        assert_eq!(demangle_line(name, true).as_ref(), &demangle(name).to_string());
+        assert_eq!(
+            demangle_line(name, true).as_ref(),
+            &demangle(name).to_string()
+        );
     }
 }
 
@@ -54,22 +59,40 @@ fn not_noop_demangles() {
 #[test]
 fn standalone_demangles_nohash() {
     for name in MANGLED_NAMES {
-        assert_eq!(demangle_line(name, false).as_ref(), &format!("{:#}", demangle(name)));
+        assert_eq!(
+            demangle_line(name, false).as_ref(),
+            &format!("{:#}", demangle(name))
+        );
     }
 }
 
-fn test_embedded_line_demangle<F1, F2>(line_demangler: F1, demangler: F2) where F1: Fn(&str) -> String, F2: Fn(&str) -> String {
+fn test_embedded_line_demangle<F1, F2>(line_demangler: F1, demangler: F2)
+where
+    F1: Fn(&str) -> String,
+    F2: Fn(&str) -> String,
+{
     for name in MANGLED_NAMES {
         macro_rules! test_context {
-            ($context:expr) => (assert_eq!(line_demangler(&format!($context, name)), format!($context, demangler(name))))
+            ($context:expr) => {
+                assert_eq!(
+                    line_demangler(&format!($context, name)),
+                    format!($context, demangler(name))
+                )
+            };
         }
         // x86 ASM
         test_context!("        lea     rax, [rip + {}]");
         test_context!("        call    {}@PLT");
         // perf script --no-demangle
-        test_context!("                  1a680e {} (/home/user/git/steven-rust/target/debug/steven)");
-        test_context!("                  20039f {} (/home/user/git/steven-rust/target/debug/steven)");
-        test_context!("                  1dade8 {} (/home/user/git/steven-rust/target/debug/steven)");
+        test_context!(
+            "                  1a680e {} (/home/user/git/steven-rust/target/debug/steven)"
+        );
+        test_context!(
+            "                  20039f {} (/home/user/git/steven-rust/target/debug/steven)"
+        );
+        test_context!(
+            "                  1dade8 {} (/home/user/git/steven-rust/target/debug/steven)"
+        );
         // Random unicode symbols
         test_context!("J∆ƒƒ∆Ǥ{}∆ʓ∆ɲI∆ɳ");
         // https://xkcd.com/1638/
@@ -80,12 +103,18 @@ fn test_embedded_line_demangle<F1, F2>(line_demangler: F1, demangler: F2) where 
 
 #[test]
 fn embedded_demangle() {
-    test_embedded_line_demangle(|line| demangle_line(line, false).into_owned(), |name| format!("{:#}", demangle(name)));
+    test_embedded_line_demangle(
+        |line| demangle_line(line, false).into_owned(),
+        |name| format!("{:#}", demangle(name)),
+    );
 }
 
 #[test]
 fn embedded_demangle_nohash() {
-    test_embedded_line_demangle(|line| demangle_line(line, true).into_owned(), |name| demangle(name).to_string());
+    test_embedded_line_demangle(
+        |line| demangle_line(line, true).into_owned(),
+        |name| demangle(name).to_string(),
+    );
 }
 
 #[test]
