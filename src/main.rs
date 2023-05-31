@@ -19,16 +19,16 @@ extern crate rustc_demangle;
 use rustc_demangle::demangle_stream;
 
 use std::fs::File;
-use std::io::{self, BufReader, BufWriter, Write, stdin, stdout, stderr};
+use std::io::{self, stderr, stdin, stdout, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 use std::process::exit;
+use std::str::FromStr;
 
 mod tests;
 
 enum InputType {
     Stdin,
-    File(PathBuf)
+    File(PathBuf),
 }
 
 impl InputType {
@@ -39,8 +39,10 @@ impl InputType {
                 let stdin = stdin();
                 let mut lock = stdin.lock();
                 output.write_demangled(&mut lock, include_hash)
-            },
-            InputType::File(ref path) => output.write_demangled(&mut BufReader::new(File::open(path)?), include_hash)
+            }
+            InputType::File(ref path) => {
+                output.write_demangled(&mut BufReader::new(File::open(path)?), include_hash)
+            }
         }
     }
     fn validate(file: String) -> Result<(), String> {
@@ -69,7 +71,7 @@ impl FromStr for InputType {
 
 enum OutputType {
     Stdout,
-    File(PathBuf)
+    File(PathBuf),
 }
 
 impl OutputType {
@@ -80,7 +82,7 @@ impl OutputType {
                 let stdout = stdout();
                 let mut lock = stdout.lock();
                 demangle_stream(input, &mut lock, include_hash)
-            },
+            }
             OutputType::File(ref path) => {
                 let file = File::create(path)?;
                 let mut buf = BufWriter::new(&file);
@@ -88,9 +90,17 @@ impl OutputType {
             }
         }
     }
-    fn write_demangled_names<S: AsRef<str>>(&self, names: &[S], include_hash: bool) -> io::Result<()> {
+    fn write_demangled_names<S: AsRef<str>>(
+        &self,
+        names: &[S],
+        include_hash: bool,
+    ) -> io::Result<()> {
         #[inline] // It's only used twice ;)
-        fn demangle_names_to<S: AsRef<str>, O: io::Write>(names: &[S], output: &mut O, include_hash: bool) -> io::Result<()> {
+        fn demangle_names_to<S: AsRef<str>, O: io::Write>(
+            names: &[S],
+            output: &mut O,
+            include_hash: bool,
+        ) -> io::Result<()> {
             for name in names {
                 let demangled = rustc_demangle::demangle(name.as_ref());
                 if include_hash {
@@ -106,7 +116,7 @@ impl OutputType {
                 let stdout = stdout();
                 let mut lock = stdout.lock();
                 demangle_names_to(names, &mut lock, include_hash)
-            },
+            }
             OutputType::File(ref path) => {
                 let file = File::create(path)?;
                 let mut buf = BufWriter::new(&file);
@@ -147,10 +157,12 @@ fn main() {
     let include_hash = args.is_present("INCLUDE_HASH");
     let output = value_t!(args, "OUTPUT", OutputType).unwrap();
     if let Some(names) = args.values_of("NAMES") {
-        output.write_demangled_names(&names.collect::<Vec<_>>(), include_hash).unwrap_or_else(|e| {
-            writeln!(stderr(), "Unable to demangle names: {}", e).unwrap();
-            exit(1);
-        })
+        output
+            .write_demangled_names(&names.collect::<Vec<_>>(), include_hash)
+            .unwrap_or_else(|e| {
+                writeln!(stderr(), "Unable to demangle names: {}", e).unwrap();
+                exit(1);
+            })
     } else {
         let input = value_t!(args, "INPUT", InputType).unwrap();
         input.demangle(output, include_hash).unwrap_or_else(|e| {
